@@ -1,0 +1,852 @@
+<?xml version="1.0"?>
+<!-- Generated from urdf_export_20260824_122649.txt
+     Meshes: assembly-frame STL (mm), scale 0.001 (zero-pose vertical thighs).
+     base_link at assembly origin (0,0,0).
+     Joint pivots: CoordSys 2/3/5/6/8/9/11/12 + derived hip_roll.
+     Laser: body continuous Z (360 deg), head revolute Y (+/-30 deg).
+     Colors: Spot palette (export colors unavailable).
+     base_footprint raises model so feet sit at Z=0.
+-->
+<robot name="bosdyn_spot">
+  <mujoco>
+    <compiler meshdir="../assets" balanceinertia="true" discardvisual="false" fusestatic="false"/>
+  </mujoco>
+
+
+  <material name="spot_yellow">
+    <color rgba="1.0 0.82 0.0 1"/>
+  </material>
+  <material name="midnight_black">
+    <color rgba="0.1 0.1 0.1 1"/>
+  </material>
+  <material name="silver">
+    <color rgba="0.75 0.75 0.75 1"/>
+  </material>
+
+  <!-- base_footprint removed for MuJoCo freejoint on base_link -->
+
+  <!-- ===================== base_link ===================== -->
+  <link name="base_link">
+    <inertial>
+      <!-- Approx COM from base_link mesh BB center (mass props empty in export) -->
+      <origin xyz="0.055571 0.035451 0.074803" rpy="0 0 0"/>
+      <mass value="7.01332"/>
+      <inertia
+        ixx="0.047812997" ixy="0.000163955" ixz="-0.001222827"
+        iyy="0.374802689" iyz="-0.000178556" izz="0.378497185"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="base_link.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="base_link.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="camera">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.469876 -0.035451 -0.066943" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="camera.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.469876 -0.035451 -0.066943" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="camera.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera"/>
+    <origin xyz="0.469876 0.035451 0.066943" rpy="0 0 0"/>
+  </joint>
+  <link name="lidar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.057762 -0.035451 -0.176617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="lidar.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0.057762 -0.035451 -0.176617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="lidar.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar"/>
+    <origin xyz="-0.057762 0.035451 0.176617" rpy="0 0 0"/>
+  </joint>
+  <link name="imu_sensor">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.066090 -0.035451 -0.002617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="imu_sensor.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.066090 -0.035451 -0.002617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="imu_sensor.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="imu_sensor_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_sensor"/>
+    <origin xyz="0.066090 0.035451 0.002617" rpy="0 0 0"/>
+  </joint>
+  
+  <link name="roof">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.057762 -0.035451 -0.171617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="roof.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0.057762 -0.035451 -0.171617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="roof.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="roof_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="roof"/>
+    <origin xyz="-0.057762 0.035451 0.171617" rpy="0 0 0"/>
+  </joint>
+  <!-- ===================== laser pointer ===================== -->
+  <link name="laser_pointer_bottom">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.340151 -0.035451 -0.164617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_bottom.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.340151 -0.035451 -0.164617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_bottom.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="laser_pointer_bottom_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_pointer_bottom"/>
+    <origin xyz="0.340151 0.035451 0.164617" rpy="0 0 0"/>
+  </joint>
+  <link name="laser_pointer_body">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.340151 -0.035451 -0.164617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_body.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.340151 -0.035451 -0.164617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_body.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="laser_pointer_body_joint" type="continuous">
+    <parent link="laser_pointer_bottom"/>
+    <child link="laser_pointer_body"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="100" velocity="10"/>
+  </joint>
+  <link name="laser_pointer_head">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.340151 -0.035451 -0.196617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_head.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.340151 -0.035451 -0.196617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_pointer_head.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="laser_pointer_head_joint" type="revolute">
+    <parent link="laser_pointer_body"/>
+    <child link="laser_pointer_head"/>
+    <origin xyz="0 0 0.032000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.5236" upper="0.5236" effort="100" velocity="10"/>
+  </joint>
+  <link name="laser_source">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.354151 -0.035451 -0.196617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_source.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.354151 -0.035451 -0.196617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="laser_source.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="laser_source_joint" type="fixed">
+    <parent link="laser_pointer_head"/>
+    <child link="laser_source"/>
+    <origin xyz="0.014000 0 0" rpy="0 0 0"/>
+  </joint>
+  <!-- ===================== fl leg ===================== -->
+  <link name="fl_hip_roll">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.2"/>
+      <inertia ixx="0.0002" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0002"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.335676 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.335676 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fl_hip_roll_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="fl_hip_roll"/>
+    <origin xyz="0.335676 0.085451 0.086617" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.239" upper="0.500" effort="100" velocity="10"/>
+  </joint>
+  <link name="fl_hip_roll_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.335676 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.335676 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fl_hip_roll_connector_joint" type="fixed">
+    <parent link="fl_hip_roll"/>
+    <child link="fl_hip_roll_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="fl_hip_yaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.385676 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.385676 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fl_hip_yaw_joint" type="revolute">
+    <parent link="fl_hip_roll_connector"/>
+    <child link="fl_hip_yaw"/>
+    <origin xyz="0.050000 0.070000 0.000000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="10"/>
+  </joint>
+  <link name="fl_hip_yaw_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.385676 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.385676 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fl_hip_yaw_connector_joint" type="fixed">
+    <parent link="fl_hip_yaw"/>
+    <child link="fl_hip_yaw_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="fl_knee">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.425288 -0.218986 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision name="fl_knee_collision">
+      <origin xyz="-0.425288 -0.218986 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fl_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+    <!-- Simple foot sphere for reliable Gazebo contact sensor.
+         Origin/radius fitted (least squares sphere fit) directly to the
+         rounded foot-pad region of fl_knee.STL, in the knee joint's local
+         frame; this is NOT the mesh-alignment offset used by <visual> and
+         <collision> above (that offset places a primitive's origin at the
+         far end of the whole assembly, nowhere near the actual foot).
+         The previous value (same as the mesh offset) put the contact
+         sphere about 0.31m above and 0.43m behind the knee, instead of
+         about 0.37m below and 0.02m inboard of it. -->
+    <collision name="fl_foot_contact_sphere">
+      <origin xyz="0.000730 -0.022200 -0.370380" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.0415"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fl_knee_joint" type="revolute">
+    <parent link="fl_hip_yaw_connector"/>
+    <child link="fl_knee"/>
+    <origin xyz="0.039612 0.063535 -0.398541" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.631" upper="-0.662" effort="100" velocity="10"/>
+  </joint>
+  <!-- ===================== fr leg ===================== -->
+  <link name="fr_hip_roll">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.2"/>
+      <inertia ixx="0.0002" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0002"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.335676 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.335676 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fr_hip_roll_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="fr_hip_roll"/>
+    <origin xyz="0.335676 -0.014549 0.086617" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.239" upper="0.500" effort="100" velocity="10"/>
+  </joint>
+  <link name="fr_hip_roll_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.335676 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.335676 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fr_hip_roll_connector_joint" type="fixed">
+    <parent link="fr_hip_roll"/>
+    <child link="fr_hip_roll_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="fr_hip_yaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.385676 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.385676 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fr_hip_yaw_joint" type="revolute">
+    <parent link="fr_hip_roll_connector"/>
+    <child link="fr_hip_yaw"/>
+    <origin xyz="0.050000 -0.070000 0.000000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="10"/>
+  </joint>
+  <link name="fr_hip_yaw_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.385676 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.385676 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fr_hip_yaw_connector_joint" type="fixed">
+    <parent link="fr_hip_yaw"/>
+    <child link="fr_hip_yaw_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="fr_knee">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.425288 0.148084 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision name="fr_knee_collision">
+      <origin xyz="-0.425288 0.148084 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="fr_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+    <!-- Foot pad center, fitted from fr_knee.STL; see fl_foot_contact_sphere note above. -->
+    <collision name="fr_foot_contact_sphere">
+      <origin xyz="0.000770 0.021910 -0.370470" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.0415"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="fr_knee_joint" type="revolute">
+    <parent link="fr_hip_yaw_connector"/>
+    <child link="fr_knee"/>
+    <origin xyz="0.039612 -0.063535 -0.398541" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.631" upper="-0.662" effort="100" velocity="10"/>
+  </joint>
+  <!-- ===================== rl leg ===================== -->
+  <link name="rl_hip_roll">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.2"/>
+      <inertia ixx="0.0002" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.224324 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0.224324 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rl_hip_roll_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="rl_hip_roll"/>
+    <origin xyz="-0.224324 0.085451 0.086617" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.239" upper="0.500" effort="100" velocity="10"/>
+  </joint>
+  <link name="rl_hip_roll_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.224324 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0.224324 -0.085451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rl_hip_roll_connector_joint" type="fixed">
+    <parent link="rl_hip_roll"/>
+    <child link="rl_hip_roll_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="rl_hip_yaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.274324 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="0.274324 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rl_hip_yaw_joint" type="revolute">
+    <parent link="rl_hip_roll_connector"/>
+    <child link="rl_hip_yaw"/>
+    <origin xyz="-0.050000 0.070000 0.000000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="10"/>
+  </joint>
+  <link name="rl_hip_yaw_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.274324 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0.274324 -0.155451 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rl_hip_yaw_connector_joint" type="fixed">
+    <parent link="rl_hip_yaw"/>
+    <child link="rl_hip_yaw_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="rl_knee">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.234712 -0.218986 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision name="rl_knee_collision">
+      <origin xyz="0.234712 -0.218986 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rl_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+    <!-- Foot pad center, fitted from rl_knee.STL; see fl_foot_contact_sphere note above. -->
+    <collision name="rl_foot_contact_sphere">
+      <origin xyz="0.000710 -0.022170 -0.370600" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.0415"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rl_knee_joint" type="revolute">
+    <parent link="rl_hip_yaw_connector"/>
+    <child link="rl_knee"/>
+    <origin xyz="0.039612 0.063535 -0.398541" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.631" upper="-0.662" effort="100" velocity="10"/>
+  </joint>
+  <!-- ===================== rr leg ===================== -->
+  <link name="rr_hip_roll">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.2"/>
+      <inertia ixx="0.0002" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0002"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.224324 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0.224324 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_roll.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rr_hip_roll_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="rr_hip_roll"/>
+    <origin xyz="-0.224324 -0.014549 0.086617" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.239" upper="0.500" effort="100" velocity="10"/>
+  </joint>
+  <link name="rr_hip_roll_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.224324 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0.224324 0.014549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_roll_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rr_hip_roll_connector_joint" type="fixed">
+    <parent link="rr_hip_roll"/>
+    <child link="rr_hip_roll_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="rr_hip_yaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0005"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.274324 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="spot_yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="0.274324 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_yaw.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rr_hip_yaw_joint" type="revolute">
+    <parent link="rr_hip_roll_connector"/>
+    <child link="rr_hip_yaw"/>
+    <origin xyz="-0.050000 -0.070000 0.000000" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="10"/>
+  </joint>
+  <link name="rr_hip_yaw_connector">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="5e-05" ixy="0" ixz="0" iyy="5e-05" iyz="0" izz="5e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.274324 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="silver"/>
+    </visual>
+    <collision>
+      <origin xyz="0.274324 0.084549 -0.086617" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_hip_yaw_connector.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rr_hip_yaw_connector_joint" type="fixed">
+    <parent link="rr_hip_yaw"/>
+    <child link="rr_hip_yaw_connector"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="rr_knee">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0003" iyz="0" izz="0.0003"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.234712 0.148084 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="midnight_black"/>
+    </visual>
+    <collision name="rr_knee_collision">
+      <origin xyz="0.234712 0.148084 0.311924" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="rr_knee.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+    <!-- Foot pad center, fitted from rr_knee.STL; see fl_foot_contact_sphere note above. -->
+    <collision name="rr_foot_contact_sphere">
+      <origin xyz="0.000780 0.021790 -0.370380" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.0415"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rr_knee_joint" type="revolute">
+    <parent link="rr_hip_yaw_connector"/>
+    <child link="rr_knee"/>
+    <origin xyz="0.039612 -0.063535 -0.398541" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.631" upper="-0.662" effort="100" velocity="10"/>
+  </joint>
+
+  <!-- ===================== Foot contact friction ===================== -->
+  
+  
+  
+  
+
+  <!-- Keep laser frames as real Gazebo links. URDF->SDF otherwise lumps
+       fixed children (laser_source, laser_pointer_bottom) into their
+       parents, so MarkerManager cannot find bosdyn_spot::laser_source. -->
+  
+  
+
+  <!-- ===================== Gazebo sensors ===================== -->
+  <!-- Single-ray designator from laser_source (+X). visualize is off so
+       Gazebo does not draw the debug lidar fan; the pointer look comes from
+       the attached red spotlight plus the beam/spot markers. -->
+  
+
+  
+
+  
+
+  
+
+  <!-- ===================== ros2_control (12 leg DoF + 2 laser DoF) ===================== -->
+  <!-- initial_value = stand pose (hip 0.764, knee -1.646); zero pose is outside knee limits -->
+  
+
+  
+</robot>

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+spot_raw.xml
+.DS_Store
+
+models/
+logs/
