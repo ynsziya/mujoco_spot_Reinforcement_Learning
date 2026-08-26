@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from envs.spot_walk_env import SpotWalkEnv
 
-MODEL_PATH = ROOT / "models" / "ppo_spot_800000_steps.zip"
+MODEL_PATH = ROOT / "models" / "ppo_spot_final.zip"
 
 
 def main() -> None:
@@ -40,7 +40,10 @@ def main() -> None:
                 print(
                     f"episode end | reward={reward:.3f} "
                     f"height={info.get('height', float('nan')):.3f} "
-                    f"forward={info.get('forward_vel', float('nan')):.3f}"
+                    f"fwd={info.get('forward_vel', float('nan')):.3f} "
+                    f"wx={info.get('world_vx', float('nan')):.3f} "
+                    f"lat={info.get('lateral_pos', float('nan')):.3f} "
+                    f"yaw={info.get('yaw', float('nan')):.3f}"
                 )
                 obs, _ = env.reset()
 

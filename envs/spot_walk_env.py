@@ -29,6 +29,12 @@ class SpotWalkEnv(gym.Env):
         if self.home_key_id < 0:
             raise RuntimeError("Keyframe 'home' bulunamadı.")
 
+        self.base_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "base_link"
+        )
+        if self.base_body_id < 0:
+            raise RuntimeError("Body 'base_link' bulunamadı.")
+
         self.frame_skip = 10
         self.default_pose = self.model.key_ctrl[self.home_key_id, :N_LEG].copy()
         self.action_scale = 0.3
@@ -63,54 +69,90 @@ class SpotWalkEnv(gym.Env):
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)
 
-        self._last_action = action.copy()
-
         obs = self._get_obs()
         reward, terminated, info = self._compute_reward(action)
+        self._last_action = action.copy()
         truncated = False
         return obs, reward, terminated, truncated, info
 
+    def _base_lin_vel_body(self) -> np.ndarray:
+        """World lin vel → base body frame (x=ileri, y=yana)."""
+        R = self.data.xmat[self.base_body_id].reshape(3, 3)
+        v_world = self.data.qvel[0:3]
+        return (R.T @ v_world).astype(np.float64)
+
     def _compute_reward(self, action: np.ndarray):
-        forward_vel = float(self.data.qvel[0])
+        v_body = self._base_lin_vel_body()
+        forward_vel = float(v_body[0])
+        lateral_vel = float(v_body[1])
+        world_vx = float(self.data.qvel[0])
+        lateral_pos = float(self.data.qpos[1])
         height = float(self.data.qpos[2])
+        yaw_rate = float(self.data.qvel[5])
+        roll_pitch_rate = float(np.sum(np.square(self.data.qvel[3:5])))
+
         gravity_z = float(self._gravity_in_body_frame(self.data.qpos[3:7])[2])
         upright = float(np.clip(-gravity_z, 0.0, 1.0))
+        yaw = self._yaw_from_quat(self.data.qpos[3:7])
+        heading = float(np.cos(yaw))  # 1 = +x bakış
+        # y sapmasını sınırla; karesel birikim epizodu öldürmesin
+        lat_track = float(np.tanh(lateral_pos))
 
         action_penalty = float(np.sum(np.square(action)))
-        ang_vel = float(np.sum(np.square(self.data.qvel[3:6])))
 
+        # Body ileri hız + +x bakış; yana/yaw sert ceza
         reward = (
-            1.0 * forward_vel
+            2.0 * forward_vel
+            + 0.5 * world_vx
             + 0.5 * upright
+            + 1.5 * heading
+            - 1.5 * yaw ** 2
+            - 2.0 * lateral_vel ** 2
+            - 0.8 * lat_track ** 2
+            - 0.5 * yaw_rate ** 2
+            - 0.05 * roll_pitch_rate
             - 0.01 * action_penalty
-            - 0.05 * ang_vel
         )
 
         terminated = bool(height < self.fall_height)
 
         info = {
             "forward_vel": forward_vel,
+            "world_vx": world_vx,
+            "lateral_vel": lateral_vel,
+            "lateral_pos": lateral_pos,
+            "yaw": yaw,
             "height": height,
             "upright": upright,
             "reward": reward,
         }
         return reward, terminated, info
 
+    @staticmethod
+    def _yaw_from_quat(quat_wxyz: np.ndarray) -> float:
+        w, x, y, z = [float(v) for v in quat_wxyz]
+        return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
+
     def _get_obs(self):
         qpos = self.data.qpos
         qvel = self.data.qvel
 
-        base_lin_vel = qvel[0:3].astype(np.float32)
+        base_lin_vel_body = self._base_lin_vel_body().astype(np.float32)
         base_ang_vel = qvel[3:6].astype(np.float32)
         gravity_body = self._gravity_in_body_frame(qpos[3:7])
+        yaw = self._yaw_from_quat(qpos[3:7])
+        heading_feat = np.array(
+            [np.sin(yaw), np.cos(yaw), np.tanh(qpos[1])], dtype=np.float32
+        )
         joint_pos = (qpos[7 : 7 + N_LEG] - self.default_pose).astype(np.float32)
         joint_vel = qvel[6 : 6 + N_LEG].astype(np.float32)
 
         return np.concatenate(
             [
-                base_lin_vel,
+                base_lin_vel_body,
                 base_ang_vel,
                 gravity_body,
+                heading_feat,
                 joint_pos,
                 joint_vel,
                 self._last_action,
