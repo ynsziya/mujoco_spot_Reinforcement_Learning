@@ -16,8 +16,8 @@ sys.path.insert(0, str(ROOT))
 
 from envs.spot_walk_env import SpotWalkEnv
 
-MODEL_PATH = ROOT / "models" / "ppo_spot_249996_steps.zip"
-VECNORM_PATH = ROOT / "models" / "ppo_spot_vecnormalize_249996_steps.pkl"
+MODEL_PATH = ROOT / "models" / "ppo_spot_final.zip"
+VECNORM_PATH = ROOT / "models" / "ppo_spot_vecnormalize.pkl"
 
 
 def make_view_env():
