@@ -16,8 +16,16 @@ import mujoco
 import mujoco.viewer
 import numpy as np
 
-from envs.mjx_spot_model import N_LEG, load_spot_mj_model
+from envs.mjx_spot_model import N_LEG, ROUGH_SCENE, load_spot_mj_model
 from envs.spot_locomotion_mjx import STACK_FRAMES, config_for_stage
+from envs.terrain import (
+    DEFAULT_SEED,
+    MAP_EDGE_MARGIN,
+    N_TILES,
+    out_of_map,
+    sample_height,
+    tile_center,
+)
 
 MODELS_DIR = ROOT / "models"
 
@@ -143,7 +151,7 @@ def quat_yaw(quat_wxyz: np.ndarray) -> float:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--model", type=str, default=None)
-    p.add_argument("--stage", choices=("walk", "run"), default="walk")
+    p.add_argument("--stage", choices=("walk", "run", "rough"), default="walk")
     p.add_argument("--vx", type=float, default=None)
     p.add_argument("--vy", type=float, default=0.0)
     p.add_argument("--wz", type=float, default=0.0)
@@ -156,6 +164,12 @@ def parse_args():
         help="Disable yaw correction that holds the initial heading when wz=0",
     )
     p.add_argument("--heading-kp", type=float, default=1.25)
+    p.add_argument(
+        "--terrain-scale",
+        type=float,
+        default=None,
+        help="Rough-terrain amplitude (default: value stored in the policy, else 1.0)",
+    )
     return p.parse_args()
 
 
@@ -185,14 +199,51 @@ def main():
 
     cfg = config_for_stage(args.stage)
     if args.vx is None:
-        args.vx = 2.5 if args.stage == "run" else 0.6
+        args.vx = {"run": 2.5, "rough": 0.5}.get(args.stage, 0.6)
 
+    terrain_scale = (
+        float(args.terrain_scale)
+        if args.terrain_scale is not None
+        else float(meta.get("terrain_scale", 1.0))
+    )
+    scene_path = str(ROUGH_SCENE) if args.stage == "rough" else None
     mj_model, ids = load_spot_mj_model(
-        fast=True, timestep=timestep, frame_skip=frame_skip
+        scene_path,
+        fast=True,
+        timestep=timestep,
+        frame_skip=frame_skip,
+        terrain_scale=terrain_scale,
+        terrain_seed=DEFAULT_SEED,
     )
     data = mujoco.MjData(mj_model)
-    mujoco.mj_resetDataKeyframe(mj_model, data, ids.home_key_id)
-    mujoco.mj_forward(mj_model, data)
+
+    def terrain_z(x: float, y: float) -> float:
+        if not ids.has_hfield:
+            return 0.0
+        return sample_height(
+            ids.hfield_elev,
+            x,
+            y,
+            nrow=ids.hfield_nrow,
+            ncol=ids.hfield_ncol,
+            half_x=ids.hfield_half_x,
+            half_y=ids.hfield_half_y,
+            elevation_z=ids.hfield_elevation_z,
+        )
+
+    def place_on_terrain() -> None:
+        mujoco.mj_resetDataKeyframe(mj_model, data, ids.home_key_id)
+        if ids.has_hfield:
+            i = int(np.random.randint(0, N_TILES))
+            j = int(np.random.randint(0, N_TILES))
+            x, y = tile_center(i, j, ids.hfield_half_x, ids.hfield_half_y)
+            data.qpos[0] = x
+            data.qpos[1] = y
+            data.qpos[2] = terrain_z(x, y) + ids.target_height
+            data.qvel[:] = 0.0
+        mujoco.mj_forward(mj_model, data)
+
+    place_on_terrain()
 
     default_pose = ids.default_pose.copy()
     action_scale = np.tile(
@@ -277,6 +328,8 @@ def main():
         f"Command: vx={args.vx} vy={args.vy} wz={args.wz} "
         f"heading_hold={heading_hold}"
     )
+    if args.stage == "rough":
+        print(f"Terrain: scale={terrain_scale:.2f} seed={DEFAULT_SEED}")
     print("Controls: left-drag rotate, right-drag pan, scroll zoom, Esc quit")
 
     step_i = 0
@@ -305,16 +358,28 @@ def main():
             if step_i % 50 == 0:
                 R = data.xmat[ids.base_body_id].reshape(3, 3)
                 v = float((R.T @ data.qvel[0:3])[0])
+                rel_h = float(data.qpos[2]) - terrain_z(
+                    float(data.qpos[0]), float(data.qpos[1])
+                )
                 print(
-                    f"t={step_i*dt:6.1f}s  h={data.qpos[2]:.3f}  "
+                    f"t={step_i*dt:6.1f}s  h={rel_h:.3f}  "
                     f"vx={v:.3f}  target={command[0]:.2f}  "
                     f"yaw={quat_yaw(data.qpos[3:7]):.2f}  wz={command[2]:.2f}",
                     flush=True,
                 )
-            if data.qpos[2] < 0.25:
+            rel_h = float(data.qpos[2]) - terrain_z(
+                float(data.qpos[0]), float(data.qpos[1])
+            )
+            left_map = ids.has_hfield and out_of_map(
+                float(data.qpos[0]),
+                float(data.qpos[1]),
+                ids.hfield_half_x,
+                ids.hfield_half_y,
+                MAP_EDGE_MARGIN,
+            )
+            if rel_h < 0.25 or left_map:
                 print("Fallen — resetting")
-                mujoco.mj_resetDataKeyframe(mj_model, data, ids.home_key_id)
-                mujoco.mj_forward(mj_model, data)
+                place_on_terrain()
                 applied[:] = 0
                 history = None
                 phase = 0.0

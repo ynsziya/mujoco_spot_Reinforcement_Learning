@@ -59,27 +59,45 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Spot MJX PPO training")
-    p.add_argument("--stage", choices=("walk", "run"), default="walk")
+    p.add_argument("--stage", choices=("walk", "run", "rough"), default="walk")
     p.add_argument(
         "--timesteps",
         type=int,
         default=None,
         help=(
-            "Env steps to train this run (default: 20M walk / 60M run). "
+            "Env steps to train this run (default: 20M walk / 60M run / 40M rough). "
             "On resume this is additional steps; the log/pkl counter continues."
         ),
     )
-    p.add_argument("--num-envs", type=int, default=4096)
+    p.add_argument(
+        "--num-envs",
+        type=int,
+        default=None,
+        help="Parallel MJX environments (default: 4096 walk/run, 2048 rough)",
+    )
     p.add_argument("--episode-length", type=int, default=1000)
     p.add_argument("--unroll-length", type=int, default=20)
     p.add_argument("--batch-size", type=int, default=256)
     p.add_argument("--num-minibatches", type=int, default=32)
     p.add_argument("--num-updates-per-batch", type=int, default=4)
-    p.add_argument("--learning-rate", type=float, default=3e-4)
+    p.add_argument(
+        "--learning-rate",
+        type=float,
+        default=None,
+        help="PPO lr (default: 3e-4 walk/run, 1e-4 rough)",
+    )
     p.add_argument("--entropy-cost", type=float, default=1e-2)
     p.add_argument("--discounting", type=float, default=0.97)
     p.add_argument("--gae-lambda", type=float, default=0.95)
     p.add_argument("--clipping-epsilon", type=float, default=0.2)
+    p.add_argument(
+        "--reward-scaling",
+        type=float,
+        default=None,
+        help="Reward scale for PPO (default: 1.0 walk/run, 0.1 rough)",
+    )
+    p.add_argument("--vf-loss-coefficient", type=float, default=None)
+    p.add_argument("--clipping-epsilon-value", type=float, default=None)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
     p.add_argument(
         "--num-evals",
@@ -112,7 +130,13 @@ def parse_args() -> argparse.Namespace:
         "--vx-max",
         type=float,
         default=None,
-        help="Override commanded forward speed cap (walk default 1.0, run 5.0)",
+        help="Override commanded forward speed cap (walk default 1.0, run 5.0, rough 0.8)",
+    )
+    p.add_argument(
+        "--terrain-scale",
+        type=float,
+        default=1.0,
+        help="Rough-terrain amplitude in [0, 1] (ignored for walk/run)",
     )
     p.add_argument("--smoke", action="store_true")
     return p.parse_args()
@@ -203,10 +227,36 @@ def main() -> None:
     args = parse_args()
     print(f"jax devices: {jax.devices()} backend={jax.default_backend()}")
 
-    defaults = {"walk": 20_000_000, "run": 60_000_000}
+    defaults = {"walk": 20_000_000, "run": 60_000_000, "rough": 40_000_000}
     timesteps = args.timesteps
     if timesteps is None:
         timesteps = 200_000 if args.smoke else defaults[args.stage]
+    if args.num_envs is None:
+        args.num_envs = 2048 if args.stage == "rough" else 4096
+    lr_defaults = {"walk": 3e-4, "run": 3e-4, "rough": 1e-4}
+    reward_scale_defaults = {"walk": 1.0, "run": 1.0, "rough": 0.1}
+    vf_coef_defaults = {"walk": 0.5, "run": 0.5, "rough": 0.25}
+    clip_value_defaults = {"walk": None, "run": None, "rough": 0.2}
+    learning_rate = (
+        args.learning_rate
+        if args.learning_rate is not None
+        else lr_defaults[args.stage]
+    )
+    reward_scaling = (
+        args.reward_scaling
+        if args.reward_scaling is not None
+        else reward_scale_defaults[args.stage]
+    )
+    vf_loss_coefficient = (
+        args.vf_loss_coefficient
+        if args.vf_loss_coefficient is not None
+        else vf_coef_defaults[args.stage]
+    )
+    clipping_epsilon_value = (
+        args.clipping_epsilon_value
+        if args.clipping_epsilon_value is not None
+        else clip_value_defaults[args.stage]
+    )
     if args.smoke:
         args.num_envs = min(args.num_envs, 512)
         args.num_evals = 5
@@ -227,6 +277,7 @@ def main() -> None:
         frame_skip=args.frame_skip,
         iterations=args.iterations,
         ls_iterations=args.ls_iterations,
+        terrain_scale=args.terrain_scale,
     )
     eval_overrides = dict(overrides)
     eval_overrides["obs_noise_scale"] = 0.0
@@ -239,6 +290,7 @@ def main() -> None:
         frame_skip=args.frame_skip,
         iterations=args.iterations,
         ls_iterations=args.ls_iterations,
+        terrain_scale=args.terrain_scale,
     )
 
     out_prefix = args.out or f"ppo_spot_mjx_{args.stage}"
@@ -323,6 +375,16 @@ def main() -> None:
                     parts.append(f"{k}={float(v):.4f}")
                 if len(parts) > 8:
                     break
+        for k in ("eval/episode_reward", "training/v_loss", "training/policy_loss"):
+            if k in metrics:
+                v = float(metrics[k])
+                if v != v:  # NaN
+                    print(
+                        f"WARNING: {k}=NaN at step {int(num_steps) + step_offset}. "
+                        "Stop and resume from an earlier *_ckpt step.",
+                        flush=True,
+                    )
+                    break
         print(" | ".join(parts), flush=True)
 
     def policy_params_fn(current_step, make_policy, params):
@@ -335,6 +397,7 @@ def main() -> None:
             "timestep": args.timestep,
             "frame_skip": args.frame_skip,
             "stack_frames": 3,
+            "terrain_scale": float(args.terrain_scale),
         }
         _export_numpy_policy(params, numpy_path, meta)
         snap = MODELS_DIR / f"{out_prefix}_step{step}.pkl"
@@ -356,7 +419,13 @@ def main() -> None:
         f"num_envs={args.num_envs} obs={env.observation_size} "
         f"act={env.action_size} dt={env.dt:.3f} "
         f"vx=[{cfg.vx_min:.1f},{cfg.vx_max:.1f}] "
-        f"domain_rand={not args.no_domain_rand}"
+        f"domain_rand={not args.no_domain_rand} "
+        f"lr={learning_rate:g} reward_scale={reward_scaling:g}"
+        + (
+            f" terrain_scale={args.terrain_scale:.2f}"
+            if args.stage == "rough"
+            else ""
+        )
     )
 
     make_policy, params, final_metrics = ppo.train(
@@ -369,7 +438,7 @@ def main() -> None:
         wrap_env=True,
         wrap_env_fn=wrap_for_training,
         randomization_fn=randomization_fn,
-        learning_rate=args.learning_rate,
+        learning_rate=learning_rate,
         entropy_cost=args.entropy_cost,
         discounting=args.discounting,
         unroll_length=args.unroll_length,
@@ -377,11 +446,14 @@ def main() -> None:
         num_minibatches=args.num_minibatches,
         num_updates_per_batch=args.num_updates_per_batch,
         normalize_observations=True,
-        reward_scaling=1.0,
+        normalize_observations_std_eps=1e-6,
+        reward_scaling=reward_scaling,
         clipping_epsilon=args.clipping_epsilon,
+        clipping_epsilon_value=clipping_epsilon_value,
         gae_lambda=args.gae_lambda,
         max_grad_norm=args.max_grad_norm,
         normalize_advantage=True,
+        vf_loss_coefficient=vf_loss_coefficient,
         bootstrap_on_timeout=True,
         network_factory=network_factory,
         seed=args.seed,
@@ -406,6 +478,7 @@ def main() -> None:
         "timestep": args.timestep,
         "frame_skip": args.frame_skip,
         "stack_frames": 3,
+        "terrain_scale": float(args.terrain_scale),
         "final_metrics": {
             k: float(v)
             for k, v in final_metrics.items()

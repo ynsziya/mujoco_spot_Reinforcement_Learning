@@ -10,7 +10,13 @@ import jax
 import jax.numpy as jnp
 from mujoco import mjx
 
-from envs.mjx_spot_model import N_LEG, load_spot_mjx
+from envs.mjx_spot_model import N_LEG, ROUGH_SCENE, load_spot_mjx
+from envs.terrain import (
+    DEFAULT_SEED,
+    MAP_EDGE_MARGIN,
+    N_TILES,
+    TILE_METERS,
+)
 
 OBS_DIM = 60
 STACK_FRAMES = 3
@@ -94,6 +100,24 @@ def config_for_stage(stage: str, **overrides: Any) -> EnvConfig:
             clearance_w=0.15,
             fall_height=0.28,
         )
+    elif stage == "rough":
+        base = dict(
+            stage="rough",
+            vx_min=0.0,
+            vx_max=0.8,
+            vy_max=0.25,
+            yaw_max=0.5,
+            gait_period_slow=0.62,
+            gait_period_fast=0.40,
+            duty_slow=0.65,
+            duty_fast=0.50,
+            fall_height=0.28,
+            clearance_w=0.2,
+            air_time_w=0.1,
+            vertical_vel_w=0.05,
+            height_w=0.4,
+            tracking_lin_sigma=0.30,
+        )
     else:
         raise ValueError(f"Unknown stage: {stage}")
     base.update(overrides)
@@ -113,8 +137,12 @@ class SpotLocomotionEnv(Env):
         frame_skip: int = 5,
         iterations: int = 4,
         ls_iterations: int = 5,
+        terrain_scale: float = 1.0,
+        terrain_seed: int = DEFAULT_SEED,
     ):
         self.config = config or config_for_stage("walk")
+        if scene_path is None and self.config.stage == "rough":
+            scene_path = str(ROUGH_SCENE)
         self.mj_model, self.mjx_model, self.ids = load_spot_mjx(
             scene_path,
             fast=fast,
@@ -122,6 +150,8 @@ class SpotLocomotionEnv(Env):
             frame_skip=frame_skip,
             iterations=iterations,
             ls_iterations=ls_iterations,
+            terrain_scale=terrain_scale,
+            terrain_seed=terrain_seed,
         )
         self.sys = self.mjx_model
 
@@ -149,6 +179,13 @@ class SpotLocomotionEnv(Env):
         self._target_height = float(self.ids.target_height)
         self._joint_low = jnp.asarray(self.ids.leg_jnt_range[:, 0], dtype=jnp.float32)
         self._joint_high = jnp.asarray(self.ids.leg_jnt_range[:, 1], dtype=jnp.float32)
+        self._has_hfield = bool(self.ids.has_hfield)
+        self._hfield_nrow = int(self.ids.hfield_nrow)
+        self._hfield_ncol = int(self.ids.hfield_ncol)
+        self._hfield_half_x = float(self.ids.hfield_half_x)
+        self._hfield_half_y = float(self.ids.hfield_half_y)
+        self._hfield_elevation_z = float(self.ids.hfield_elevation_z)
+        self._hfield_elev = jnp.asarray(self.ids.hfield_elev, dtype=jnp.float32)
 
     def _leg_qpos(self, data: mjx.Data) -> jax.Array:
         return data.qpos[self._leg_qposadr]
@@ -280,6 +317,67 @@ class SpotLocomotionEnv(Env):
         feet = self._foot_positions_world(data)
         return (feet - base) @ R
 
+    def _sample_hfield_z(self, x: jax.Array, y: jax.Array) -> jax.Array:
+        """Bilinear sample of heightfield elevation (meters) at world (x, y)."""
+        ncol = self._hfield_ncol
+        nrow = self._hfield_nrow
+        u = (x / self._hfield_half_x + 1.0) * 0.5 * (ncol - 1)
+        v = (y / self._hfield_half_y + 1.0) * 0.5 * (nrow - 1)
+        u = jnp.clip(u, 0.0, ncol - 1.0001)
+        v = jnp.clip(v, 0.0, nrow - 1.0001)
+        u0 = jnp.floor(u).astype(jnp.int32)
+        v0 = jnp.floor(v).astype(jnp.int32)
+        u1 = u0 + 1
+        v1 = v0 + 1
+        su = (u - u0.astype(jnp.float32)).astype(jnp.float32)
+        sv = (v - v0.astype(jnp.float32)).astype(jnp.float32)
+        elev = self._hfield_elev
+        z00 = elev[v0, u0]
+        z10 = elev[v0, u1]
+        z01 = elev[v1, u0]
+        z11 = elev[v1, u1]
+        z = (
+            (1.0 - su) * (1.0 - sv) * z00
+            + su * (1.0 - sv) * z10
+            + (1.0 - su) * sv * z01
+            + su * sv * z11
+        )
+        return (z * self._hfield_elevation_z).astype(jnp.float32)
+
+    def _terrain_height(self, x: jax.Array, y: jax.Array) -> jax.Array:
+        if not self._has_hfield:
+            return jnp.zeros_like(jnp.asarray(x, dtype=jnp.float32))
+        x = jnp.asarray(x, dtype=jnp.float32)
+        y = jnp.asarray(y, dtype=jnp.float32)
+        if x.ndim == 0:
+            return self._sample_hfield_z(x, y)
+        return jax.vmap(self._sample_hfield_z)(x, y)
+
+    def _sample_spawn_xy(self, rng: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        rng, k_tile, k_off = jax.random.split(rng, 3)
+        tile = jax.random.randint(k_tile, (), 0, N_TILES * N_TILES)
+        tile_i = tile // N_TILES
+        tile_j = tile % N_TILES
+        x0 = -self._hfield_half_x + tile_j.astype(jnp.float32) * TILE_METERS
+        y0 = -self._hfield_half_y + tile_i.astype(jnp.float32) * TILE_METERS
+        offset = jax.random.uniform(k_off, (2,), minval=-0.6, maxval=0.6)
+        x = x0 + 0.5 * TILE_METERS + offset[0]
+        y = y0 + 0.5 * TILE_METERS + offset[1]
+        return x.astype(jnp.float32), y.astype(jnp.float32)
+
+    def _out_of_map(self, x: jax.Array, y: jax.Array) -> jax.Array:
+        if not self._has_hfield:
+            return jnp.array(False)
+        return jnp.logical_or(
+            jnp.abs(x) > self._hfield_half_x - MAP_EDGE_MARGIN,
+            jnp.abs(y) > self._hfield_half_y - MAP_EDGE_MARGIN,
+        )
+
+    def _physics_invalid(self, data: mjx.Data) -> jax.Array:
+        bad_qpos = jnp.any(jnp.isnan(data.qpos) | jnp.isinf(data.qpos))
+        bad_qvel = jnp.any(jnp.isnan(data.qvel) | jnp.isinf(data.qvel))
+        return jnp.logical_or(bad_qpos, bad_qvel)
+
     def _get_obs_frame(
         self,
         data: mjx.Data,
@@ -325,6 +423,13 @@ class SpotLocomotionEnv(Env):
         qvel = self._home_qvel.at[self._leg_dofadr].add(
             jax.random.normal(rng_vel, (N_LEG,), dtype=jnp.float32) * 0.05
         )
+        if self._has_hfield:
+            rng_push, rng_xy = jax.random.split(rng_push)
+            spawn_x, spawn_y = self._sample_spawn_xy(rng_xy)
+            spawn_z = self._terrain_height(spawn_x, spawn_y) + self._target_height
+            qpos = qpos.at[0].set(spawn_x)
+            qpos = qpos.at[1].set(spawn_y)
+            qpos = qpos.at[2].set(spawn_z)
         data = data.replace(qpos=qpos, qvel=qvel, ctrl=self._home_ctrl)
         data = mjx.forward(self.mjx_model, data)
 
@@ -365,11 +470,12 @@ class SpotLocomotionEnv(Env):
                 rng_push, (), 1, cfg.push_interval_steps + 1
             ),
         }
+        rel_h0 = (qpos[2] - self._terrain_height(qpos[0], qpos[1])).astype(jnp.float32)
         metrics = {
             "tracking_lin": jnp.array(0.0, dtype=jnp.float32),
             "tracking_ang": jnp.array(0.0, dtype=jnp.float32),
             "forward_vel": jnp.array(0.0, dtype=jnp.float32),
-            "height": qpos[2].astype(jnp.float32),
+            "height": rel_h0,
             "tilt": jnp.array(0.0, dtype=jnp.float32),
             "heading": jnp.array(0.0, dtype=jnp.float32),
             "x_position": jnp.array(0.0, dtype=jnp.float32),
@@ -512,6 +618,8 @@ class SpotLocomotionEnv(Env):
         yaw_rate = data.qvel[5]
         ang_xy = jnp.sum(jnp.square(data.qvel[3:5]))
         height = data.qpos[2]
+        terrain_z = self._terrain_height(data.qpos[0], data.qpos[1])
+        rel_h = height - terrain_z
         grav = self._gravity_body(data.qpos[3:7])
         tilt = jnp.linalg.norm(grav[:2])
 
@@ -521,7 +629,8 @@ class SpotLocomotionEnv(Env):
         foot_world = self._foot_positions_world(data)
         foot_delta = (foot_pos - last_foot_pos) / jnp.maximum(self._dt, 1e-6)
         foot_speed_xy = jnp.linalg.norm(foot_delta[:, :2], axis=1)
-        foot_height = foot_world[:, 2]
+        foot_terrain = self._terrain_height(foot_world[:, 0], foot_world[:, 1])
+        foot_height = foot_world[:, 2] - foot_terrain
 
         lin_err = jnp.square(forward_vel - command[0]) + jnp.square(
             lateral_vel - command[1]
@@ -534,7 +643,7 @@ class SpotLocomotionEnv(Env):
         heading_r = jnp.exp(-jnp.square(heading_err) / cfg.heading_sigma)
 
         upright = jnp.exp(-8.0 * tilt * tilt)
-        height_r = jnp.exp(-80.0 * (height - self._target_height) ** 2)
+        height_r = jnp.exp(-80.0 * (rel_h - self._target_height) ** 2)
         phase_r = 1.0 - jnp.mean(jnp.abs(contacts - desired))
 
         first_contact = (contacts > 0.5) * (last_contacts < 0.5)
@@ -544,21 +653,26 @@ class SpotLocomotionEnv(Env):
         swing = 1.0 - desired
         clearance = jnp.mean(swing * jnp.clip(foot_height - 0.05, -0.05, 0.05))
 
-        slip = jnp.mean(contacts * foot_speed_xy)
+        slip = jnp.mean(contacts * jnp.clip(foot_speed_xy, 0.0, 5.0))
         action_rate = jnp.mean(jnp.square(applied - prev_applied))
         action_pen = jnp.mean(jnp.square(action))
-        joint_vel = self._leg_qvel(data)
+        joint_vel = jnp.clip(self._leg_qvel(data), -40.0, 40.0)
         joint_vel_pen = jnp.mean(jnp.square(joint_vel))
-        joint_acc = (joint_vel - last_joint_vel) / jnp.maximum(self._dt, 1e-6)
-        joint_acc_pen = jnp.mean(jnp.square(joint_acc))
+        last_joint_vel_safe = jnp.clip(last_joint_vel, -40.0, 40.0)
+        joint_acc = (joint_vel - last_joint_vel_safe) / jnp.maximum(self._dt, 1e-6)
+        joint_acc_pen = jnp.mean(jnp.square(jnp.clip(joint_acc, -200.0, 200.0)))
 
         qj = self._leg_qpos(data)
         below = jnp.clip(self._joint_low - qj, 0.0, None)
         above = jnp.clip(qj - self._joint_high, 0.0, None)
         limit_pen = jnp.mean(jnp.square(below + above))
 
-        fallen = jnp.logical_or(height < cfg.fall_height, tilt > cfg.max_tilt)
-        done = fallen.astype(jnp.float32)
+        fallen = jnp.logical_or(rel_h < cfg.fall_height, tilt > cfg.max_tilt)
+        oob = self._out_of_map(data.qpos[0], data.qpos[1])
+        invalid = self._physics_invalid(data)
+        done = jnp.logical_or(jnp.logical_or(fallen, oob), invalid).astype(
+            jnp.float32
+        )
 
         reward = (
             cfg.tracking_lin_w * tracking_lin
@@ -578,7 +692,10 @@ class SpotLocomotionEnv(Env):
             - cfg.joint_acc_w * joint_acc_pen
             - cfg.slip_w * slip
             - cfg.limit_w * limit_pen
-            - cfg.terminate_w * done
+            - cfg.terminate_w * jnp.maximum(done, fallen.astype(jnp.float32))
+        )
+        reward = jnp.clip(
+            jnp.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0), -50.0, 50.0
         )
 
         metrics = {
@@ -586,7 +703,7 @@ class SpotLocomotionEnv(Env):
             "tracking_ang": tracking_ang,
             "heading": jnp.abs(heading_err),
             "forward_vel": forward_vel,
-            "height": height,
+            "height": rel_h,
             "tilt": tilt,
             "x_position": data.qpos[0],
             "y_position": data.qpos[1],
