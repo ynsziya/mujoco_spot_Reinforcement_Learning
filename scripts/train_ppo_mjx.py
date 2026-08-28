@@ -108,6 +108,12 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--out", type=str, default=None)
     p.add_argument("--save-checkpoint-path", type=str, default=None)
+    p.add_argument(
+        "--vx-max",
+        type=float,
+        default=None,
+        help="Override commanded forward speed cap (walk default 1.0, run 5.0)",
+    )
     p.add_argument("--smoke", action="store_true")
     return p.parse_args()
 
@@ -210,6 +216,8 @@ def main() -> None:
     overrides = {}
     if args.no_obs_noise:
         overrides["obs_noise_scale"] = 0.0
+    if args.vx_max is not None:
+        overrides["vx_max"] = float(args.vx_max)
     cfg = config_for_stage(args.stage, **overrides)
 
     env = SpotLocomotionEnv(
@@ -220,8 +228,12 @@ def main() -> None:
         iterations=args.iterations,
         ls_iterations=args.ls_iterations,
     )
+    eval_overrides = dict(overrides)
+    eval_overrides["obs_noise_scale"] = 0.0
+    eval_overrides["push_vel_xy"] = 0.0
+    eval_cfg = config_for_stage(args.stage, **eval_overrides)
     eval_env = SpotLocomotionEnv(
-        config=config_for_stage(args.stage, obs_noise_scale=0.0, push_vel_xy=0.0),
+        config=eval_cfg,
         fast=True,
         timestep=args.timestep,
         frame_skip=args.frame_skip,
@@ -343,6 +355,7 @@ def main() -> None:
         f"planned={planned_steps} num_evals={num_evals} "
         f"num_envs={args.num_envs} obs={env.observation_size} "
         f"act={env.action_size} dt={env.dt:.3f} "
+        f"vx=[{cfg.vx_min:.1f},{cfg.vx_max:.1f}] "
         f"domain_rand={not args.no_domain_rand}"
     )
 

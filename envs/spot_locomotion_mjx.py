@@ -25,6 +25,9 @@ class EnvConfig:
     stage: str = "walk"
     max_episode_steps: int = 1000
     action_filter: float = 0.55
+    action_scale_hx: float = 0.25
+    action_scale_hy: float = 0.45
+    action_scale_knee: float = 0.45
     fall_height: float = 0.30
     max_tilt: float = 0.70
     vx_min: float = 0.0
@@ -71,7 +74,26 @@ def config_for_stage(stage: str, **overrides: Any) -> EnvConfig:
     if stage == "walk":
         base = dict(stage="walk", vx_min=0.0, vx_max=1.0, vy_max=0.35, yaw_max=0.6)
     elif stage == "run":
-        base = dict(stage="run", vx_min=-0.5, vx_max=2.0, vy_max=0.5, yaw_max=1.0)
+        # 5 m/s ≈ 5× walk. Faster gaits + larger leg travel; use --vx-max to push further.
+        base = dict(
+            stage="run",
+            vx_min=-0.3,
+            vx_max=5.0,
+            vy_max=0.6,
+            yaw_max=1.2,
+            gait_period_slow=0.50,
+            gait_period_fast=0.16,
+            duty_slow=0.55,
+            duty_fast=0.32,
+            action_filter=0.40,
+            action_scale_hx=0.32,
+            action_scale_hy=0.58,
+            action_scale_knee=0.58,
+            tracking_lin_sigma=0.35,
+            air_time_w=0.25,
+            clearance_w=0.15,
+            fall_height=0.28,
+        )
     else:
         raise ValueError(f"Unknown stage: {stage}")
     base.update(overrides)
@@ -109,8 +131,13 @@ class SpotLocomotionEnv(Env):
         self._home_qpos = jnp.asarray(self.ids.home_qpos, dtype=jnp.float32)
         self._home_qvel = jnp.asarray(self.ids.home_qvel, dtype=jnp.float32)
         self._home_ctrl = jnp.asarray(self.ids.home_ctrl, dtype=jnp.float32)
+        cfg = self.config
         self._action_scale = jnp.tile(
-            jnp.array([0.25, 0.45, 0.45], dtype=jnp.float32), 4
+            jnp.array(
+                [cfg.action_scale_hx, cfg.action_scale_hy, cfg.action_scale_knee],
+                dtype=jnp.float32,
+            ),
+            4,
         )
         self._gait_offsets = jnp.array([0.0, 0.5, 0.5, 0.0], dtype=jnp.float32)
         self._foot_geom_ids = jnp.asarray(self.ids.foot_geom_ids, dtype=jnp.int32)

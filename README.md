@@ -35,10 +35,17 @@ Default locked config on GTX 1650 Ti: `timestep=0.004`, `frame_skip=5`, `num_env
 python scripts/train_ppo_mjx.py --stage walk --timesteps 20000000
 ```
 
-**Stage 2 — run** (resume walk checkpoint, `vx` in [-0.5, 2.0]):
+**Stage 2 — run** (resume walk checkpoint, `vx` in [-0.3, 5.0] ≈ 5× walk):
 
 ```bash
 python scripts/train_ppo_mjx.py --stage run --timesteps 60000000 \
+  --resume models/ppo_spot_mjx_walk_ckpt
+```
+
+Faster cap (sim starts to get rough past ~7 m/s with `dt=0.02`):
+
+```bash
+python scripts/train_ppo_mjx.py --stage run --vx-max 7 --timesteps 60000000 \
   --resume models/ppo_spot_mjx_walk_ckpt
 ```
 
@@ -56,7 +63,8 @@ Outputs:
 
 ```bash
 python scripts/play_ppo_mjx.py --stage walk --vx 0.6
-python scripts/play_ppo_mjx.py --stage run --vx 1.5
+python scripts/play_ppo_mjx.py --stage run --vx 3.0
+python scripts/play_ppo_mjx.py --stage run --vx 5.0
 ```
 
 Uses classic `mujoco.viewer` + NumPy MLP (no JIT stall).

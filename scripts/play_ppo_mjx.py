@@ -17,7 +17,7 @@ import mujoco.viewer
 import numpy as np
 
 from envs.mjx_spot_model import N_LEG, load_spot_mj_model
-from envs.spot_locomotion_mjx import STACK_FRAMES
+from envs.spot_locomotion_mjx import STACK_FRAMES, config_for_stage
 
 MODELS_DIR = ROOT / "models"
 
@@ -144,7 +144,7 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--model", type=str, default=None)
     p.add_argument("--stage", choices=("walk", "run"), default="walk")
-    p.add_argument("--vx", type=float, default=0.6)
+    p.add_argument("--vx", type=float, default=None)
     p.add_argument("--vy", type=float, default=0.0)
     p.add_argument("--wz", type=float, default=0.0)
     p.add_argument("--timestep", type=float, default=0.004)
@@ -183,6 +183,10 @@ def main():
     normalizer = NumpyNormalizer(ckpt["normalizer"])
     policy = NumpyMLP(ckpt["policy_params"], activation="elu")
 
+    cfg = config_for_stage(args.stage)
+    if args.vx is None:
+        args.vx = 2.5 if args.stage == "run" else 0.6
+
     mj_model, ids = load_spot_mj_model(
         fast=True, timestep=timestep, frame_skip=frame_skip
     )
@@ -191,8 +195,10 @@ def main():
     mujoco.mj_forward(mj_model, data)
 
     default_pose = ids.default_pose.copy()
-    action_scale = np.tile([0.25, 0.45, 0.45], 4).astype(np.float32)
-    action_filter = 0.55
+    action_scale = np.tile(
+        [cfg.action_scale_hx, cfg.action_scale_hy, cfg.action_scale_knee], 4
+    ).astype(np.float32)
+    action_filter = float(cfg.action_filter)
     gait_offsets = np.array([0.0, 0.5, 0.5, 0.0], dtype=np.float32)
     command = np.array([args.vx, args.vy, args.wz], dtype=np.float32)
     heading_hold = (not args.no_heading_hold) and abs(args.wz) < 1e-6
@@ -207,10 +213,10 @@ def main():
     history = None
 
     def gait_period(vx: float) -> float:
-        t = float(
-            np.clip(abs(vx) / max(abs(args.vx) if args.vx else 1.0, 1e-3), 0.0, 1.0)
+        t = float(np.clip(abs(vx) / max(float(cfg.vx_max), 1e-3), 0.0, 1.0))
+        return float(
+            cfg.gait_period_slow * (1.0 - t) + cfg.gait_period_fast * t
         )
-        return 0.62 * (1 - t) + 0.28 * t
 
     def obs_frame() -> np.ndarray:
         R = data.xmat[ids.base_body_id].reshape(3, 3)
