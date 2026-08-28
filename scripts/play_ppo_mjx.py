@@ -131,6 +131,15 @@ def foot_contacts(model, data, floor_id, foot_ids) -> np.ndarray:
     return contacts
 
 
+def wrap_to_pi(angle: float) -> float:
+    return float((angle + np.pi) % (2.0 * np.pi) - np.pi)
+
+
+def quat_yaw(quat_wxyz: np.ndarray) -> float:
+    w, x, y, z = [float(v) for v in quat_wxyz]
+    return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--model", type=str, default=None)
@@ -141,6 +150,12 @@ def parse_args():
     p.add_argument("--timestep", type=float, default=0.004)
     p.add_argument("--frame-skip", type=int, default=5)
     p.add_argument("--max-steps", type=int, default=0)
+    p.add_argument(
+        "--no-heading-hold",
+        action="store_true",
+        help="Disable yaw correction that holds the initial heading when wz=0",
+    )
+    p.add_argument("--heading-kp", type=float, default=1.25)
     return p.parse_args()
 
 
@@ -180,6 +195,8 @@ def main():
     action_filter = 0.55
     gait_offsets = np.array([0.0, 0.5, 0.5, 0.0], dtype=np.float32)
     command = np.array([args.vx, args.vy, args.wz], dtype=np.float32)
+    heading_hold = (not args.no_heading_hold) and abs(args.wz) < 1e-6
+    heading_target = quat_yaw(data.qpos[3:7])
     dt = ids.dt
     leg_qposadr = ids.leg_qposadr
     leg_dofadr = ids.leg_dofadr
@@ -242,13 +259,24 @@ def main():
             mean = logits
         return np.tanh(mean).astype(np.float32)
 
+    def update_heading_command():
+        if not heading_hold:
+            return
+        yaw = quat_yaw(data.qpos[3:7])
+        err = wrap_to_pi(heading_target - yaw)
+        command[2] = np.clip(args.heading_kp * err, -1.0, 1.0)
+
     print(f"Model: {model_path}")
-    print(f"Command: vx={args.vx} vy={args.vy} wz={args.wz}")
+    print(
+        f"Command: vx={args.vx} vy={args.vy} wz={args.wz} "
+        f"heading_hold={heading_hold}"
+    )
     print("Controls: left-drag rotate, right-drag pan, scroll zoom, Esc quit")
 
     step_i = 0
     with mujoco.viewer.launch_passive(mj_model, data) as viewer:
         while viewer.is_running():
+            update_heading_command()
             obs = stacked_obs()
             action = policy_action(obs)
             applied = (
@@ -273,7 +301,8 @@ def main():
                 v = float((R.T @ data.qvel[0:3])[0])
                 print(
                     f"t={step_i*dt:6.1f}s  h={data.qpos[2]:.3f}  "
-                    f"vx={v:.3f}  target={command[0]:.2f}",
+                    f"vx={v:.3f}  target={command[0]:.2f}  "
+                    f"yaw={quat_yaw(data.qpos[3:7]):.2f}  wz={command[2]:.2f}",
                     flush=True,
                 )
             if data.qpos[2] < 0.25:
@@ -283,6 +312,8 @@ def main():
                 applied[:] = 0
                 history = None
                 phase = 0.0
+                heading_target = quat_yaw(data.qpos[3:7])
+                command[2] = args.wz
             if args.max_steps and step_i >= args.max_steps:
                 break
 

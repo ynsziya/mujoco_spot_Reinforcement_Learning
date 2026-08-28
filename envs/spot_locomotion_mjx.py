@@ -32,6 +32,9 @@ class EnvConfig:
     vy_max: float = 0.35
     yaw_max: float = 0.6
     zero_cmd_prob: float = 0.10
+    vy_zero_prob: float = 0.55
+    yaw_zero_prob: float = 0.55
+    heading_stiffness: float = 1.25
     cmd_resample_steps: int = 250
     gait_period_slow: float = 0.62
     gait_period_fast: float = 0.28
@@ -43,7 +46,9 @@ class EnvConfig:
     tracking_lin_sigma: float = 0.25
     tracking_ang_sigma: float = 0.25
     tracking_lin_w: float = 1.5
-    tracking_ang_w: float = 0.8
+    tracking_ang_w: float = 1.4
+    heading_w: float = 0.8
+    heading_sigma: float = 0.25
     upright_w: float = 0.5
     height_w: float = 0.5
     air_time_w: float = 0.15
@@ -140,15 +145,43 @@ class SpotLocomotionEnv(Env):
     def dt(self) -> float:
         return self._dt
 
-    def _sample_command(self, rng: jax.Array) -> jax.Array:
+    def _yaw_from_quat(self, quat_wxyz: jax.Array) -> jax.Array:
+        w, x, y, z = quat_wxyz
+        siny_cosp = 2.0 * (w * z + x * y)
+        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+        return jnp.arctan2(siny_cosp, cosy_cosp)
+
+    def _wrap_to_pi(self, angle: jax.Array) -> jax.Array:
+        return (angle + jnp.pi) % (2.0 * jnp.pi) - jnp.pi
+
+    def _sample_velocity_command(
+        self, rng: jax.Array, current_yaw: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
+        """Sample (vx, vy) and a heading target. Yaw rate is derived later."""
         cfg = self.config
-        rng, k1, k2, k3, k4 = jax.random.split(rng, 5)
+        rng, k1, k2, k3, k4, k5, k6 = jax.random.split(rng, 7)
         vx = jax.random.uniform(k1, (), minval=cfg.vx_min, maxval=cfg.vx_max)
         vy = jax.random.uniform(k2, (), minval=-cfg.vy_max, maxval=cfg.vy_max)
-        yaw = jax.random.uniform(k3, (), minval=-cfg.yaw_max, maxval=cfg.yaw_max)
-        cmd = jnp.array([vx, vy, yaw], dtype=jnp.float32)
-        zero = jax.random.uniform(k4, ()) < cfg.zero_cmd_prob
-        return jnp.where(zero, jnp.zeros_like(cmd), cmd)
+        vy = jnp.where(jax.random.uniform(k4, ()) < cfg.vy_zero_prob, 0.0, vy)
+        hold_heading = jax.random.uniform(k5, ()) < cfg.yaw_zero_prob
+        new_heading = jax.random.uniform(k3, (), minval=-jnp.pi, maxval=jnp.pi)
+        heading_target = jnp.where(hold_heading, current_yaw, new_heading)
+        cmd_xy = jnp.array([vx, vy], dtype=jnp.float32)
+        zero = jax.random.uniform(k6, ()) < cfg.zero_cmd_prob
+        cmd_xy = jnp.where(zero, jnp.zeros_like(cmd_xy), cmd_xy)
+        heading_target = jnp.where(zero, current_yaw, heading_target)
+        return cmd_xy.astype(jnp.float32), heading_target.astype(jnp.float32)
+
+    def _command_from_heading(
+        self, cmd_xy: jax.Array, heading_target: jax.Array, yaw: jax.Array
+    ) -> jax.Array:
+        cfg = self.config
+        yaw_cmd = jnp.clip(
+            cfg.heading_stiffness * self._wrap_to_pi(heading_target - yaw),
+            -cfg.yaw_max,
+            cfg.yaw_max,
+        )
+        return jnp.array([cmd_xy[0], cmd_xy[1], yaw_cmd], dtype=jnp.float32)
 
     def _gait_params(self, command: jax.Array) -> Tuple[jax.Array, jax.Array]:
         cfg = self.config
@@ -258,9 +291,6 @@ class SpotLocomotionEnv(Env):
         rng, rng_cmd, rng_phase, rng_pose, rng_vel, rng_obs, rng_push = jax.random.split(
             rng, 7
         )
-        command = self._sample_command(rng_cmd)
-        phase = jax.random.uniform(rng_phase, ())
-
         data = mjx.make_data(self.mjx_model)
         qpos = self._home_qpos.at[self._leg_qposadr].add(
             jax.random.normal(rng_pose, (N_LEG,), dtype=jnp.float32) * 0.02
@@ -270,6 +300,11 @@ class SpotLocomotionEnv(Env):
         )
         data = data.replace(qpos=qpos, qvel=qvel, ctrl=self._home_ctrl)
         data = mjx.forward(self.mjx_model, data)
+
+        yaw0 = self._yaw_from_quat(data.qpos[3:7])
+        cmd_xy, heading_target = self._sample_velocity_command(rng_cmd, yaw0)
+        command = self._command_from_heading(cmd_xy, heading_target, yaw0)
+        phase = jax.random.uniform(rng_phase, ())
 
         last_action = jnp.zeros(ACTION_DIM, dtype=jnp.float32)
         applied = jnp.zeros(ACTION_DIM, dtype=jnp.float32)
@@ -287,6 +322,8 @@ class SpotLocomotionEnv(Env):
         info = {
             "rng": rng_push,
             "command": command,
+            "cmd_xy": cmd_xy,
+            "heading_target": heading_target,
             "phase": phase,
             "elapsed": jnp.array(0, dtype=jnp.int32),
             "steps_since_cmd": jnp.array(0, dtype=jnp.int32),
@@ -307,6 +344,7 @@ class SpotLocomotionEnv(Env):
             "forward_vel": jnp.array(0.0, dtype=jnp.float32),
             "height": qpos[2].astype(jnp.float32),
             "tilt": jnp.array(0.0, dtype=jnp.float32),
+            "heading": jnp.array(0.0, dtype=jnp.float32),
             "x_position": jnp.array(0.0, dtype=jnp.float32),
             "y_position": jnp.array(0.0, dtype=jnp.float32),
             "reward": jnp.array(0.0, dtype=jnp.float32),
@@ -360,8 +398,11 @@ class SpotLocomotionEnv(Env):
 
         steps_since_cmd = info["steps_since_cmd"] + 1
         resample = steps_since_cmd >= cfg.cmd_resample_steps
-        new_cmd = self._sample_command(rng_cmd)
-        command = jnp.where(resample, new_cmd, info["command"])
+        yaw = self._yaw_from_quat(data.qpos[3:7])
+        new_xy, new_heading = self._sample_velocity_command(rng_cmd, yaw)
+        cmd_xy = jnp.where(resample, new_xy, info["cmd_xy"])
+        heading_target = jnp.where(resample, new_heading, info["heading_target"])
+        command = self._command_from_heading(cmd_xy, heading_target, yaw)
         steps_since_cmd = jnp.where(resample, 0, steps_since_cmd)
 
         period, _ = self._gait_params(command)
@@ -371,6 +412,7 @@ class SpotLocomotionEnv(Env):
         reward, done, metrics, extras = self._reward(
             data=data,
             command=command,
+            heading_target=heading_target,
             phase=phase,
             action=action,
             applied=applied,
@@ -393,6 +435,8 @@ class SpotLocomotionEnv(Env):
         new_info = {
             "rng": rng_next,
             "command": command,
+            "cmd_xy": cmd_xy,
+            "heading_target": heading_target,
             "phase": phase,
             "elapsed": elapsed,
             "steps_since_cmd": steps_since_cmd,
@@ -423,6 +467,7 @@ class SpotLocomotionEnv(Env):
         *,
         data: mjx.Data,
         command: jax.Array,
+        heading_target: jax.Array,
         phase: jax.Array,
         action: jax.Array,
         applied: jax.Array,
@@ -457,6 +502,9 @@ class SpotLocomotionEnv(Env):
         ang_err = jnp.square(yaw_rate - command[2])
         tracking_lin = jnp.exp(-lin_err / cfg.tracking_lin_sigma)
         tracking_ang = jnp.exp(-ang_err / cfg.tracking_ang_sigma)
+        yaw = self._yaw_from_quat(data.qpos[3:7])
+        heading_err = self._wrap_to_pi(heading_target - yaw)
+        heading_r = jnp.exp(-jnp.square(heading_err) / cfg.heading_sigma)
 
         upright = jnp.exp(-8.0 * tilt * tilt)
         height_r = jnp.exp(-80.0 * (height - self._target_height) ** 2)
@@ -488,6 +536,7 @@ class SpotLocomotionEnv(Env):
         reward = (
             cfg.tracking_lin_w * tracking_lin
             + cfg.tracking_ang_w * tracking_ang
+            + cfg.heading_w * heading_r
             + cfg.upright_w * upright
             + cfg.height_w * height_r
             + cfg.phase_w * phase_r
@@ -508,6 +557,7 @@ class SpotLocomotionEnv(Env):
         metrics = {
             "tracking_lin": tracking_lin,
             "tracking_ang": tracking_ang,
+            "heading": jnp.abs(heading_err),
             "forward_vel": forward_vel,
             "height": height,
             "tilt": tilt,

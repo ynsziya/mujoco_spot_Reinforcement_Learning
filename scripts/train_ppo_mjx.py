@@ -289,6 +289,8 @@ def main() -> None:
         keys = [
             "eval/episode_reward",
             "eval/episode_reward_tracking_lin",
+            "eval/episode_reward_tracking_ang",
+            "eval/episode_heading",
             "eval/episode_reward_forward_vel",
             "eval/episode_reward_height",
             "eval/avg_episode_length",
