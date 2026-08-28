@@ -2,7 +2,7 @@
 
 # 🐕 mujoco_spot_RL
 
-**GPU-accelerated** quadruped locomotion for Boston Dynamics Spot in **MuJoCo MJX** — Brax PPO training (walk → run), domain randomization, and JIT-free playback in the classic MuJoCo viewer.
+**GPU-accelerated** quadruped locomotion for Spot in **MuJoCo MJX** — Brax PPO training (walk → run), domain randomization, and JIT-free playback in the classic MuJoCo viewer.
 
 ![MuJoCo](https://img.shields.io/badge/MuJoCo-MJX%203.2+-orange?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjZmZmIj48cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAxOGMtNC40MSAwLTgtMy41OS04LThzMy41OS04IDgtOCA4IDMuNTkgOCA4LTMuNTkgOC04IDh6Ii8+PC9zdmc+)
 ![Language](https://img.shields.io/badge/Language-Python%203.10+-3776AB?logo=python&logoColor=white)
