@@ -17,6 +17,7 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [Demo](#-demo)
 - [Training Stages](#-training-stages)
 - [Package Structure](#-package-structure)
 - [Dependencies](#-dependencies)
@@ -46,6 +47,27 @@ The stack is split into two stages — **walk** then **run** — with curriculum
 | `view_spot` | `scripts/view_spot.py` | Passive viewer at the `home` keyframe (no policy) |
 
 URDF, MJCF (`spot.xml`, `scene.xml`), and the Spot mesh assets are **self-contained** in this repo.
+
+---
+
+## 🎥 Demo
+
+Trained walk/run policies in the MuJoCo viewer — velocity commands from slow trot to ~5 m/s run:
+
+<div align="center">
+
+[![MuJoCo Spot RL Demo](https://img.youtube.com/vi/nQ8diQvs56I/maxresdefault.jpg)](https://youtu.be/nQ8diQvs56I)
+
+**▶️ [Watch the Spot Locomotion Demo](https://youtu.be/nQ8diQvs56I)**
+
+</div>
+
+Replay locally:
+
+```bash
+python scripts/play_ppo_mjx.py --stage walk --vx 0.6
+python scripts/play_ppo_mjx.py --stage run --vx 5.0
+```
 
 ---
 
