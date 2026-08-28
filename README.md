@@ -1,15 +1,6 @@
 # MuJoCo Spot RL
 
-Deep RL locomotion for Boston Dynamics Spot in MuJoCo.
-
-## Pipelines
-
-| Pipeline | Physics | Trainer | Best for |
-|----------|---------|---------|----------|
-| Classic | MuJoCo CPU | Stable-Baselines3 PPO | Debugging, CPU-only |
-| **MJX** | MuJoCo MJX (JAX/GPU) | Brax PPO | Fast walk + run training |
-
-Use the MJX pipeline for serious training (thousands of parallel envs on GPU).
+Deep RL locomotion for Boston Dynamics Spot in MuJoCo MJX (JAX/GPU) with Brax PPO.
 
 ## Setup
 
@@ -19,7 +10,7 @@ pip install -r requirements.txt
 export XLA_PYTHON_CLIENT_PREALLOCATE=false   # important on 4 GB GPUs
 ```
 
-## MJX training (walk → run)
+## Training (walk → run)
 
 Benchmark throughput / lock in `timestep` & `frame_skip`:
 
@@ -42,6 +33,13 @@ python scripts/train_ppo_mjx.py --stage run --timesteps 60000000 \
   --resume models/ppo_spot_mjx_walk_ckpt
 ```
 
+Continue an existing run:
+
+```bash
+python scripts/train_ppo_mjx.py --stage run --timesteps 60000000 \
+  --resume models/ppo_spot_mjx_run_ckpt
+```
+
 Faster cap (sim starts to get rough past ~7 m/s with `dt=0.02`):
 
 ```bash
@@ -59,7 +57,7 @@ Outputs:
 - `models/ppo_spot_mjx_{stage}.pkl` — NumPy policy for instant playback
 - `models/ppo_spot_mjx_{stage}_ckpt/` — Brax checkpoints (for `--resume`)
 
-## MJX playback (no JAX physics)
+## Playback (no JAX physics)
 
 ```bash
 python scripts/play_ppo_mjx.py --stage walk --vx 0.6
@@ -68,13 +66,6 @@ python scripts/play_ppo_mjx.py --stage run --vx 5.0
 ```
 
 Uses classic `mujoco.viewer` + NumPy MLP (no JIT stall).
-
-## Classic CPU pipeline
-
-```bash
-python scripts/train_ppo.py
-python scripts/play_ppo.py
-```
 
 ## Notes
 

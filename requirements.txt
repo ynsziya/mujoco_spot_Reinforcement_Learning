@@ -1,11 +1,7 @@
-# Classic CPU pipeline (stable-baselines3)
-gymnasium>=1.0
 mujoco>=3.2
-stable-baselines3>=2.3
-torch>=2.0
 numpy>=1.26
 
-# MJX + Brax PPO pipeline (GPU)
+# MJX + Brax PPO (GPU)
 jax[cuda12]>=0.11
 mujoco-mjx>=3.2
 brax==0.14.2
